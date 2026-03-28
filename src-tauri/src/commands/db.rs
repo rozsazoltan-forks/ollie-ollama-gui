@@ -88,6 +88,18 @@ pub async fn db_set_chat_title(chat_id: String, title: String) -> Result<bool, S
 }
 
 #[tauri::command]
+pub async fn db_set_chat_system_prompt(chat_id: String, system_prompt: Option<String>) -> Result<bool, String> {
+	let pool = get_pool().await?;
+	let res = sqlx::query("UPDATE chats SET system_prompt = ? WHERE id = ?")
+		.bind(system_prompt)
+		.bind(chat_id)
+		.execute(&pool)
+		.await
+		.map_err(|e| format!("set chat system prompt failed: {}", e))?;
+	Ok(res.rows_affected() > 0)
+}
+
+#[tauri::command]
 pub async fn db_list_chats(limit: Option<i64>) -> Result<Vec<ChatMeta>, String> {
 	let pool = get_pool().await?;
 	let l = limit.unwrap_or(100);

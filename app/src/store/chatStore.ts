@@ -40,6 +40,7 @@ interface ChatState {
   // Actions
   setCurrentModel: (model: string) => void
   setCurrentChatId: (chatId: string | null) => void
+  setCurrentSystemPrompt: (prompt: string | null) => void
   createNewChat: (opts?: { model?: string; systemPrompt?: string; paramsJson?: string }) => Promise<string | null>
   loadChat: (chatId: string, systemPrompt?: string | null) => Promise<boolean>
   addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => string
@@ -66,6 +67,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setCurrentModel: (model) => set({ currentModel: model }),
   setCurrentChatId: (chatId) => set({ currentChatId: chatId }),
+  setCurrentSystemPrompt: (prompt) => set({ currentSystemPrompt: prompt }),
 
   createNewChat: async (opts) => {
     try {

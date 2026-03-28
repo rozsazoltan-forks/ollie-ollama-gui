@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sliders } from 'lucide-react'
+import { invoke } from '@tauri-apps/api/core'
 import { useSettingsStore } from '../store/settingsStore'
+import { useChatStore } from '../store/chatStore'
 
 interface ParametersPanelProps {
   isOpen: boolean
@@ -11,14 +13,22 @@ export default function ParametersPanel({ isOpen, onClose }: ParametersPanelProp
   const {
     defaultParams,
     setDefaultParams,
-    systemPrompt,
-    setSystemPrompt,
     saveSettingsToBackend
   } = useSettingsStore()
 
+  const { currentChatId, currentSystemPrompt, setCurrentSystemPrompt } = useChatStore()
+
   const [localParams, setLocalParams] = useState(defaultParams)
-  const [localSystemPrompt, setLocalSystemPrompt] = useState(systemPrompt)
+  const [localSystemPrompt, setLocalSystemPrompt] = useState(currentSystemPrompt ?? '')
   const [hasChanges, setHasChanges] = useState(false)
+
+  // Sync local prompt when the active chat changes or panel opens.
+  // currentSystemPrompt intentionally excluded: reset only on chat/panel change,
+  // not on every external store update while the user is editing.
+  useEffect(() => {
+    setLocalSystemPrompt(currentSystemPrompt ?? '')
+    setHasChanges(false)
+  }, [currentChatId, isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleParamChange = (param: string, value: number) => {
     const newParams = { ...localParams, [param]: value }
@@ -33,14 +43,25 @@ export default function ParametersPanel({ isOpen, onClose }: ParametersPanelProp
 
   const handleSave = async () => {
     setDefaultParams(localParams)
-    setSystemPrompt(localSystemPrompt)
     await saveSettingsToBackend()
+
+    // Persist per-chat system prompt to DB and update in-memory state
+    if (currentChatId) {
+      const promptValue = localSystemPrompt.trim() || null
+      try {
+        await invoke('db_set_chat_system_prompt', { chatId: currentChatId, systemPrompt: promptValue })
+      } catch (e) {
+        console.warn('db_set_chat_system_prompt failed', e)
+      }
+      setCurrentSystemPrompt(promptValue)
+    }
+
     setHasChanges(false)
   }
 
   const handleReset = () => {
     setLocalParams(defaultParams)
-    setLocalSystemPrompt(systemPrompt)
+    setLocalSystemPrompt(currentSystemPrompt ?? '')
     setHasChanges(false)
   }
 
