@@ -26,14 +26,14 @@ If you want a personal, single-user assistant that feels premium, fast, and alwa
 No configuration needed. Just download and run.
 
 ```bash
-# Download the AppImage (v0.2.2)
-wget https://github.com/MedGm/OllamaGUI/releases/download/v0.2.2/Ollie_0.2.2_amd64.AppImage
+# Download the AppImage (v0.2.4)
+wget https://github.com/MedGm/Ollie/releases/download/v0.2.4/Ollie_0.2.4_amd64.AppImage
 
 # Make it executable
-chmod +x Ollie_0.2.2_amd64.AppImage
+chmod +x Ollie_0.2.4_amd64.AppImage
 
 # Run it
-./Ollie_0.2.2_amd64.AppImage
+./Ollie_0.2.4_amd64.AppImage
 ```
 
 *Requirements: [Ollama](https://ollama.com) installed and running.*
@@ -54,6 +54,9 @@ Drag and drop images to analyze them with vision models like LLaVA. Upload PDFs 
 
 **Monitoring Dashboard**
 Real-time tracking of system resources (CPU, Memory), running models with VRAM usage, and the ability to stop/unload models directly from the dashboard.
+
+**Dark Theme**
+Full dark mode with a light/dark/system toggle. System mode follows your OS preference automatically.
 
 ## Gallery
 
@@ -80,6 +83,7 @@ Real-time tracking of system resources (CPU, Memory), running models with VRAM u
 
 ### ✅ Recently Completed
 
+- **Dark Theme**: Full dark mode with light/dark/system toggle, consistent across all screens. Contributed by [@leoniv](https://github.com/leoniv).
 - **Monitoring Dashboard Enhancements**: View running models, VRAM usage, and stop/unload models directly from the Monitoring tab.
 - **Model Download Progress**: Visual progress bars for model downloads with size/percentage display.
 - **Fullscreen Code Preview**: Expand HTML/SVG previews to fullscreen modal for better viewing.
@@ -124,6 +128,11 @@ Real-time tracking of system resources (CPU, Memory), running models with VRAM u
 - **Windows & MacOS Support**: Windows & MacOS versions.
 - **Plugin System**: Extend functionality with community plugins.
 - **Internationalization**: Multi-language UI support.
+
+## Contributors
+
+- [@MedGm](https://github.com/MedGm) — creator & maintainer
+- [@leoniv](https://github.com/leoniv) — dark theme & UI polish
 
 ## License
 
