@@ -24,7 +24,11 @@ export default function MainPanel() {
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior })
+      if (!containerRef.current) return
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior,
+      })
     })
     setShouldAutoScroll(true)
     setShowScrollButton(false)
