@@ -269,11 +269,11 @@ function MenuButton({ icon, label, isActive, onClick }: { icon: React.ReactNode,
     <button
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium group active:scale-95 ${isActive
-        ? 'bg-gray-900 text-white shadow-md'
-        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+        ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 shadow-md'
+        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
         }`}
     >
-      <div className={`${isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-900'}`}>
+      <div className={`${isActive ? 'text-white dark:text-gray-900' : 'text-gray-500 dark:text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-100'}`}>
         {icon}
       </div>
       <span>{label}</span>

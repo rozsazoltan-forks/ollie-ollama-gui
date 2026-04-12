@@ -31,7 +31,7 @@ jobs:
         run: npm run build
 
   backend:
-    name: Rust Check
+    name: Rust Clippy
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,5 +47,5 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cargo check
-        run: cargo check
+      - name: Cargo clippy
+        run: cargo clippy --all-targets --all-features
