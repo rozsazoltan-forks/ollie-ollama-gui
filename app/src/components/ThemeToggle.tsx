@@ -1,51 +1,37 @@
-import { Moon, Sun } from 'lucide-react'
+import { Monitor, Moon, Sun } from 'lucide-react'
 import { useSettingsStore } from '../store/settingsStore'
-import { useEffect } from 'react'
 
 export default function ThemeToggle() {
-  const { theme, setTheme } = useSettingsStore()
+  const { theme, setTheme, saveSettingsToBackend } = useSettingsStore()
+  const themeOrder = ['light', 'dark', 'system'] as const
 
-  useEffect(() => {
-    // Handle system theme preference
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      const handleChange = () => {
-        if (mediaQuery.matches) {
-          document.documentElement.classList.add('dark')
-        } else {
-          document.documentElement.classList.remove('dark')
-        }
-      }
-      
-      handleChange()
-      mediaQuery.addListener(handleChange)
-      
-      return () => mediaQuery.removeListener(handleChange)
-    } else {
-      // Apply theme directly
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
-    }
-  }, [theme])
+  const toggleTheme = async () => {
+    const nextTheme = themeOrder[(themeOrder.indexOf(theme) + 1) % themeOrder.length]
+    setTheme(nextTheme)
 
-  const toggleTheme = () => {
-    if (theme === 'light') {
-      setTheme('dark')
-    } else {
-      setTheme('light')
+    try {
+      await saveSettingsToBackend()
+    } catch (error) {
+      console.error('Failed to save theme setting', error)
     }
   }
+
+  const icon = theme === 'light'
+    ? <Moon size={18} />
+    : theme === 'dark'
+      ? <Monitor size={18} />
+      : <Sun size={18} />
+
+  const nextThemeLabel = themeOrder[(themeOrder.indexOf(theme) + 1) % themeOrder.length]
 
   return (
     <button
       onClick={toggleTheme}
       className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-      title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+      title={`Switch to ${nextThemeLabel} theme`}
+      aria-label={`Current theme: ${theme}. Switch to ${nextThemeLabel} theme`}
     >
-      {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+      {icon}
     </button>
   )
 }
