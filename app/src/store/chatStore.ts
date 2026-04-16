@@ -7,6 +7,8 @@ import { useModelsStore } from './modelsStore'
 export interface ToolCallState {
   id: string
   name: string
+  // args is an arbitrary JSON object from the LLM — typing it further would require a full refactor
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   args: any
   status: 'calling' | 'done'
 }
@@ -77,12 +79,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   createNewChat: async (opts) => {
     try {
-      const res = await invoke<any>('db_create_chat', {
+      const res = await invoke<{ id: string; title?: string | null; system_prompt?: string | null }>('db_create_chat', {
         model: (opts?.model ?? get().currentModel) || null,
         systemPrompt: opts?.systemPrompt ?? (useSettingsStore.getState().systemPrompt || null),
         paramsJson: opts?.paramsJson ?? null,
       })
-      const chatId = res?.id as string
+      const chatId = res?.id
       // Store the system prompt in state so we use it immediately
       set({
         currentChatId: chatId,
@@ -111,8 +113,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentSystemPrompt: systemPrompt || null,
         isLoadingChat: true,
       })
-      const rows = await invoke<any>('db_list_messages', { chatId, limit: 1000 })
-      const msgs: ChatMessage[] = (rows as any[]).map((r) => {
+      interface DbMessage {
+        id: string
+        role: string
+        content: string
+        meta_json?: string | null
+        created_at?: number
+      }
+      const rows = await invoke<DbMessage[]>('db_list_messages', { chatId, limit: 1000 })
+      const msgs: ChatMessage[] = rows.map((r) => {
         let images: string[] | undefined
         try {
           if (r.meta_json) {
@@ -121,7 +130,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
               images = meta.images
             }
           }
-        } catch (e) { }
+        } catch {
+          // best-effort: ignore JSON parse errors for meta_json
+        }
 
         return {
           id: r.id,
@@ -380,8 +391,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       // Listen for stream start to get stream ID
-      unlistenStreamStart = await listen('chat:stream-start', (event: any) => {
-        const { stream_id } = event.payload as { stream_id: string }
+      unlistenStreamStart = await listen<{ stream_id: string }>('chat:stream-start', (event) => {
+        const { stream_id } = event.payload
 
         currentStreamId = stream_id
         const currentState = get()
@@ -389,8 +400,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
 
       // Listen for tool start
-      unlistenToolStart = await listen('chat:tool-start', (event: any) => {
-        const payload = event.payload as { stream_id: string, tool: string, args: any }
+      unlistenToolStart = await listen<{ stream_id: string; tool: string; args: ToolCallState['args'] }>('chat:tool-start', (event) => {
+        const payload = event.payload
 
         if (payload.stream_id === currentStreamId) {
           get().updateMessageToolCalls(assistantMessageId, {
@@ -403,8 +414,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
 
       // Listen for cancellation
-      unlistenCancelled = await listen('chat:cancelled', (event: any) => {
-        const { stream_id } = event.payload as { stream_id: string }
+      unlistenCancelled = await listen<{ stream_id: string }>('chat:cancelled', (event) => {
+        const { stream_id } = event.payload
 
         if (stream_id === currentStreamId) {
           const currentState = get()
@@ -413,8 +424,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       })
       // Set up event listeners for streaming
-      unlistenChunk = await listen('chat:chunk', (event: any) => {
-        const chunk = event.payload as { stream_id?: string; message?: { role?: string; content?: string }; done?: boolean }
+      unlistenChunk = await listen<{ stream_id?: string; message?: { role?: string; content?: string }; done?: boolean }>('chat:chunk', (event) => {
+        const chunk = event.payload
 
         // Filter by stream_id to prevent auto-title or other streams from leaking in
         if (chunk.stream_id && currentStreamId && chunk.stream_id !== currentStreamId) return
@@ -448,9 +459,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       })
 
-      unlistenError = await listen('chat:error', (event: any) => {
-
-        const payload = event.payload as { stream_id?: string; error?: string }
+      unlistenError = await listen<{ stream_id?: string; error?: string }>('chat:error', (event) => {
+        const payload = event.payload
         if (payload?.stream_id && payload.stream_id !== currentStreamId) {
           return
         }
@@ -468,8 +478,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         cleanup()
       })
 
-      unlistenComplete = await listen('chat:complete', (event: any) => {
-        const payload = event.payload as { completed: boolean; stream_id?: string }
+      unlistenComplete = await listen<{ completed: boolean; stream_id?: string }>('chat:complete', (event) => {
+        const payload = event.payload
 
         // Only process completion for the current stream
         if (payload.stream_id && payload.stream_id !== currentStreamId) return
@@ -682,14 +692,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     try {
-      unlistenStreamStart = await listen('chat:stream-start', (event: any) => {
-        const { stream_id } = event.payload as { stream_id: string }
+      unlistenStreamStart = await listen<{ stream_id: string }>('chat:stream-start', (event) => {
+        const { stream_id } = event.payload
         currentStreamId = stream_id
         get().setStreaming(true, assistantMessageId, stream_id)
       })
 
-      unlistenToolStart = await listen('chat:tool-start', (event: any) => {
-        const payload = event.payload as { stream_id: string, tool: string, args: any }
+      unlistenToolStart = await listen<{ stream_id: string; tool: string; args: ToolCallState['args'] }>('chat:tool-start', (event) => {
+        const payload = event.payload
         if (payload.stream_id === currentStreamId) {
           get().updateMessageToolCalls(assistantMessageId, {
             id: `tool_${Date.now()}_${Math.random()}`,
@@ -700,16 +710,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       })
 
-      unlistenCancelled = await listen('chat:cancelled', (event: any) => {
-        const { stream_id } = event.payload as { stream_id: string }
+      unlistenCancelled = await listen<{ stream_id: string }>('chat:cancelled', (event) => {
+        const { stream_id } = event.payload
         if (stream_id === currentStreamId) {
           get().setStreaming(false)
           cleanup()
         }
       })
 
-      unlistenChunk = await listen('chat:chunk', (event: any) => {
-        const chunk = event.payload as { stream_id?: string; message?: { role?: string; content?: string }; done?: boolean }
+      unlistenChunk = await listen<{ stream_id?: string; message?: { role?: string; content?: string }; done?: boolean }>('chat:chunk', (event) => {
+        const chunk = event.payload
 
         if (chunk.stream_id && currentStreamId && chunk.stream_id !== currentStreamId) return
 
@@ -733,8 +743,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       })
 
-      unlistenError = await listen('chat:error', (event: any) => {
-        const payload = event.payload as { stream_id?: string; error?: string }
+      unlistenError = await listen<{ stream_id?: string; error?: string }>('chat:error', (event) => {
+        const payload = event.payload
         if (payload?.stream_id && payload.stream_id !== currentStreamId) return
         const st = get()
         st.setStreaming(false)
@@ -745,8 +755,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         cleanup()
       })
 
-      unlistenComplete = await listen('chat:complete', (event: any) => {
-        const payload = event.payload as { completed: boolean; stream_id?: string }
+      unlistenComplete = await listen<{ completed: boolean; stream_id?: string }>('chat:complete', (event) => {
+        const payload = event.payload
         if (payload.stream_id && payload.stream_id !== currentStreamId) return
         streamDone = true
         if (pendingText.length === 0) dripTick()
@@ -827,7 +837,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (isVLM) {
       // Try to find a small text model (llama3.2, phi, tinyllama, qwen2.5 < 7b)
       const smallModels = ['llama3.2', 'phi', 'tinyllama', 'qwen2.5:0.5b', 'qwen2.5:1.5b', 'gemma2:2b']
-      let betterModel = models.find(m => smallModels.some(sm => m.name.includes(sm)))
+      const betterModel = models.find(m => smallModels.some(sm => m.name.includes(sm)))
 
       // If no small model found, just stick to current model to avoid surprise 70b loads
       if (betterModel) {
@@ -840,11 +850,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     let titleStreamId: string | null = null
     let isDone = false
 
-    // Create a promise that resolves when generation is done
-    await new Promise<void>(async (resolvePromise) => {
+    // Run the title generation and wait for it to complete
+    // Using a separate async IIFE to avoid the no-async-promise-executor anti-pattern
+    await (async () => {
       let unlistenChunk: (() => void) | null = null
       let unlistenStart: (() => void) | null = null
-      let timeout: any = null
+      let timeout: ReturnType<typeof setTimeout> | null = null
+
+      let resolveWait!: () => void
+      const waitPromise = new Promise<void>((resolve) => { resolveWait = resolve })
 
       const cleanup = () => {
         if (timeout) clearTimeout(timeout)
@@ -852,14 +866,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (unlistenStart) unlistenStart()
       }
 
-      // Wrap resolve to cleanup
       const resolve = () => {
         cleanup()
-        resolvePromise()
+        resolveWait()
       }
 
-      unlistenChunk = await listen('chat:chunk', (event: any) => {
-        const chunk = event.payload as { stream_id?: string; message?: { content?: string }; done?: boolean }
+      unlistenChunk = await listen<{ stream_id?: string; message?: { content?: string }; done?: boolean }>('chat:chunk', (event) => {
+        const chunk = event.payload
         if (chunk.stream_id && chunk.stream_id === titleStreamId) {
           if (chunk.message?.content) {
             titleAccumulator += chunk.message.content
@@ -871,10 +884,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       })
 
-      unlistenStart = await listen('chat:stream-start', (event: any) => {
-        const payload = event.payload as { stream_id: string }
+      unlistenStart = await listen<{ stream_id: string }>('chat:stream-start', (event) => {
         if (!titleStreamId) {
-          titleStreamId = payload.stream_id
+          titleStreamId = event.payload.stream_id
         }
       })
 
@@ -903,7 +915,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         console.error('Auto-title invoke failed', e)
         resolve()
       }
-    })
+
+      await waitPromise
+    })()
 
     // Helper to strip <think> tags (common in reasoning models)
     const stripThinkTags = (text: string) => {

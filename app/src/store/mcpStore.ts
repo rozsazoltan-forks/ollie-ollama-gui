@@ -29,7 +29,8 @@ export const useMcpStore = create<McpState>()(
             removeServer: (id) => set((state) => ({
                 servers: state.servers.filter((s) => s.id !== id),
                 serverStatuses: (() => {
-                    const { [id]: _, ...rest } = state.serverStatuses;
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { [id]: _removed, ...rest } = state.serverStatuses;
                     return rest;
                 })()
             })),

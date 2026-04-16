@@ -5,13 +5,13 @@ import { useMonitoringStore } from '../store/monitoringStore'
 // Basic error boundary to isolate dashboard rendering issues
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {
-    super(props as any)
+    super(props)
     this.state = { hasError: false }
   }
   static getDerivedStateFromError() {
     return { hasError: true }
   }
-  componentDidCatch(error: any, info: any) {
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('MonitoringDashboard error boundary caught:', error, info)
   }
   render() {
@@ -25,7 +25,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
         </div>
       )
     }
-    return this.props.children as any
+    return this.props.children
   }
 }
 
@@ -154,13 +154,15 @@ function MonitoringDashboardInner() {
     stopModel
   } = useMonitoringStore()
 
+  // getSystemHealth, getOllamaStatus, getRunningModels are stable store actions; including them would re-run on every render
   useEffect(() => {
     // Load snapshot data on mount
     getSystemHealth()
     getOllamaStatus()
     getRunningModels()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // getRunningModels is a stable store action; including it would cause infinite re-registration of the interval
   useEffect(() => {
     let intervalId: NodeJS.Timeout
     if (isMonitoring) {
@@ -168,7 +170,7 @@ function MonitoringDashboardInner() {
       intervalId = setInterval(getRunningModels, 2000)
     }
     return () => clearInterval(intervalId)
-  }, [isMonitoring])
+  }, [isMonitoring]) // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Format bytes to human readable
@@ -358,8 +360,8 @@ function MonitoringDashboardInner() {
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Token Rate</span>
                     <span className="text-sm font-semibold text-gray-900">
-                      {Number.isFinite((metrics as any)?.tokenRate)
-                        ? `${((metrics as any).tokenRate as number).toFixed(1)} tokens/s`
+                      {Number.isFinite(metrics?.tokenRate)
+                        ? `${metrics.tokenRate.toFixed(1)} tokens/s`
                         : '—'}
                     </span>
                   </div>
@@ -367,8 +369,8 @@ function MonitoringDashboardInner() {
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Response Time</span>
                     <span className="text-sm font-semibold text-gray-900">
-                      {Number.isFinite((metrics as any)?.responseTime)
-                        ? `${(metrics as any).responseTime}ms`
+                      {Number.isFinite(metrics?.responseTime)
+                        ? `${metrics.responseTime}ms`
                         : '—'}
                     </span>
                   </div>
@@ -376,14 +378,14 @@ function MonitoringDashboardInner() {
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Memory Usage</span>
                     <span className="text-sm font-semibold text-gray-900">
-                      {formatBytes(Number.isFinite((metrics as any)?.memoryUsage) ? (metrics as any).memoryUsage : 0)}
+                      {formatBytes(Number.isFinite(metrics?.memoryUsage) ? metrics.memoryUsage : 0)}
                     </span>
                   </div>
 
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Requests</span>
                     <span className="text-sm font-semibold text-gray-900">
-                      {Number.isFinite((metrics as any)?.totalRequests) ? (metrics as any).totalRequests : 0}
+                      {Number.isFinite(metrics?.totalRequests) ? metrics.totalRequests : 0}
                     </span>
                   </div>
                 </div>

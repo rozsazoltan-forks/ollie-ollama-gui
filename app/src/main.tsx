@@ -12,17 +12,24 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
+// Tauri window global type augmentation — __TAURI__ is injected at runtime
+declare global {
+  interface Window {
+    __TAURI__?: { core?: { invoke?: unknown } }
+  }
+}
+
 // Dev/HMR + window unload cleanup: ensure any running streams are aborted to avoid callback warnings
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
-    if ((window as any).__TAURI__?.core?.invoke) {
+    if (window.__TAURI__?.core?.invoke) {
       invoke('abort_chat').catch(() => {})
     }
   })
 }
 
 window.addEventListener('beforeunload', () => {
-  if ((window as any).__TAURI__?.core?.invoke) {
+  if (window.__TAURI__?.core?.invoke) {
     invoke('abort_chat').catch(() => {})
   }
 })
@@ -31,21 +38,22 @@ window.addEventListener('beforeunload', () => {
 async function waitForTauriReady(timeoutMs = 3000): Promise<boolean> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
-    if ((window as any).__TAURI__?.core?.invoke) return true
+    if (window.__TAURI__?.core?.invoke) return true
     await new Promise((r) => setTimeout(r, 50))
   }
-  return !!(window as any).__TAURI__?.core?.invoke
+  return !!(window.__TAURI__?.core?.invoke)
 }
 
 // Initial settings load and default model bootstrap
 ;(async () => {
   try {
     await waitForTauriReady()
-    const load = (useSettingsStore as any).getState().loadSettingsFromBackend as () => Promise<void>
-    await load()
-    const { defaultModel } = (useSettingsStore as any).getState()
+    await useSettingsStore.getState().loadSettingsFromBackend()
+    const { defaultModel } = useSettingsStore.getState()
     if (defaultModel) {
-      (useChatStore as any).getState().setCurrentModel(defaultModel)
+      useChatStore.getState().setCurrentModel(defaultModel)
     }
-  } catch {}
+  } catch {
+    // best-effort: ignore startup errors
+  }
 })()

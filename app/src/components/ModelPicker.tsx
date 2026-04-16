@@ -67,7 +67,7 @@ export default function ModelPicker() {
 						<Download size={16} className="ui-heading" />
 						Active Downloads
 					</h3>
-					{Object.entries(pulls).map(([id, p]: any) => (
+					{Object.entries(pulls).map(([id, p]) => (
 						<div key={id} className="ui-surface rounded-xl p-4 shadow-sm border-l-4 border-l-gray-900">
 							<div className="flex items-center justify-between mb-3">
 								<div className="text-md font-medium ui-heading">{p.name}</div>

@@ -19,6 +19,7 @@ interface NotificationState {
   clearAll: () => void
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
   
@@ -116,6 +117,7 @@ export const NotificationContainer: React.FC = () => {
 }
 
 // Helper hook for easy notification usage
+// eslint-disable-next-line react-refresh/only-export-components
 export const useNotifications = () => {
   const { addNotification } = useNotificationStore()
   

@@ -22,7 +22,7 @@ export const extractPdfText = async (file: File): Promise<string> => {
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i)
             const content = await page.getTextContent()
-            const strings = content.items.map((item: any) => item.str)
+            const strings = content.items.map((item) => (item as { str: string }).str)
             textContent += `\n--- Page ${i} ---\n${strings.join(' ')}\n`
         }
 

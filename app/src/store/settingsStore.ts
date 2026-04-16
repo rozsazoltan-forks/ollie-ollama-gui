@@ -199,7 +199,18 @@ export const useSettingsStore = create<SettingsState>()(
       // Backend sync
       loadSettingsFromBackend: async () => {
         try {
-          const s = await invoke<any>('settings_get')
+          interface BackendSettings {
+            server_url?: string
+            default_model?: string
+            system_prompt?: string
+            default_params?: { temperature?: number; top_k?: number; top_p?: number; max_tokens?: number }
+            theme?: string
+            app_mode?: string
+            setup_completed?: boolean
+            providers?: ProviderConfig[]
+            active_provider_id?: string
+          }
+          const s = await invoke<BackendSettings>('settings_get')
 
           // Parse server URL
           const url: string = s.server_url || 'http://localhost:11434'
@@ -224,8 +235,8 @@ export const useSettingsStore = create<SettingsState>()(
               topP: s.default_params?.top_p ?? 0.9,
               maxTokens: s.default_params?.max_tokens ?? 2048,
             },
-            theme: s.theme || 'light',
-            appMode: s.app_mode || 'local',
+            theme: (s.theme as SettingsState['theme']) || 'light',
+            appMode: (s.app_mode as 'local' | 'cloud') || 'local',
             setupCompleted: s.setup_completed ?? false,
             providers: s.providers || [],
             activeProviderId: s.active_provider_id || 'ollama-default',

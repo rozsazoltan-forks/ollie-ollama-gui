@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { Wrench, RefreshCw, AlertCircle } from 'lucide-react'
 
+interface ToolSchema {
+    properties?: Record<string, unknown>
+    [key: string]: unknown
+}
+
 interface ToolInfo {
     server: string
     name: string
     description?: string
-    schema: any
+    schema: ToolSchema
 }
 
 export default function McpToolList() {
@@ -20,9 +25,9 @@ export default function McpToolList() {
         try {
             const res = await invoke<ToolInfo[]>('list_tools')
             setTools(res)
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error('Failed to list tools', e)
-            setError(e.toString())
+            setError(String(e))
         } finally {
             setLoading(false)
         }

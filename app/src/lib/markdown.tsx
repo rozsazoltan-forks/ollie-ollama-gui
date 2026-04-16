@@ -62,8 +62,11 @@ function FileDropdown({ name, content }: { name: string, content: string }) {
   )
 }
 
-// Shared markdown components config — created once, reused across renders
+// react-markdown component props don't expose clean public TypeScript interfaces,
+// so we use eslint-disable for the component map and individual props below.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const markdownComponents: any = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   code(codeProps: any) {
     const { inline, className, children, ...props } = codeProps
     if (inline) {
@@ -79,9 +82,12 @@ const markdownComponents: any = {
       </code>
     )
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pre(preProps: any) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const child: any = Array.isArray(preProps.children) ? preProps.children[0] : preProps.children
     let lang = ''
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let inner: any = null
 
     if (child && child.props) {
@@ -91,6 +97,7 @@ const markdownComponents: any = {
       inner = child.props.children
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const extractText = (node: any): string => {
       if (!node) return ''
       if (typeof node === 'string') return node
@@ -102,6 +109,7 @@ const markdownComponents: any = {
     const codeText = extractText(inner)
     return <CodeBlock language={lang} code={codeText}>{inner}</CodeBlock>
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   a({ children, ...props }: any) {
     return (
       <a className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline" target="_blank" rel="noreferrer" {...props}>
@@ -109,6 +117,7 @@ const markdownComponents: any = {
       </a>
     )
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   table({ children }: any) {
     return (
       <div className="overflow-x-auto my-4 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm max-w-full">
@@ -118,15 +127,19 @@ const markdownComponents: any = {
       </div>
     )
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   thead({ children }: any) {
     return <thead className="bg-gray-50 dark:bg-gray-800">{children}</thead>
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   th({ children }: any) {
     return <th className="px-4 py-2 text-left text-xs font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider break-words">{children}</th>
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   td({ children }: any) {
     return <td className="px-4 py-3 text-gray-500 dark:text-gray-300 border-t border-gray-100 dark:border-gray-700 break-words whitespace-normal">{children}</td>
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   blockquote({ children }: any) {
     return <blockquote className="border-l-4 border-gray-200 dark:border-gray-700 pl-4 py-1 my-4 italic text-gray-600 dark:text-gray-300">{children}</blockquote>
   }
@@ -134,6 +147,7 @@ const markdownComponents: any = {
 
 // Full pipeline (completed messages): GFM tables + syntax highlighting + math
 const remarkPluginsFull = [remarkGfm, remarkMath]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rehypePluginsFull = [[rehypeHighlight, { ignoreMissing: true }] as any, rehypeKatex]
 
 // Lightweight pipeline (streaming): basic markdown only — no GFM tables, no syntax highlighting

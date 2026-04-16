@@ -30,22 +30,24 @@ export default function Sidebar() {
 
   const refreshChats = async () => {
     try {
-      const rows = await invoke<any>('db_list_chats_with_flags', { limit: 200 })
-      setChats(rows as ChatMeta[])
-      const list = rows as ChatMeta[]
+      const rows = await invoke<ChatMeta[]>('db_list_chats_with_flags', { limit: 200 })
+      setChats(rows)
+      const list = rows
       const entries: Record<string, string> = {}
       for (const c of list) {
         try {
           if (!c.has_messages) continue
-          const msgs = await invoke<any[]>('db_list_messages', { chatId: c.id, limit: 1 })
+          const msgs = await invoke<{ content?: string }[]>('db_list_messages', { chatId: c.id, limit: 1 })
           if (Array.isArray(msgs) && msgs.length > 0) {
-            const m = msgs[0] as any
+            const m = msgs[0]
             const raw = String(m.content || '')
             const oneLine = raw.replace(/\s+/g, ' ').trim()
             const trimmed = oneLine.length > 80 ? `${oneLine.slice(0, 80)}…` : oneLine
             entries[c.id] = trimmed
           }
-        } catch { }
+        } catch {
+          // best-effort
+        }
       }
       setPreviews(entries)
     } catch (e) {
@@ -109,12 +111,14 @@ export default function Sidebar() {
     if (!currentChatId && chats.length > 0) {
       try {
         const latest = chats[0]
-        const rows = await invoke<any>('db_list_messages', { chatId: latest.id, limit: 1 })
+        const rows = await invoke<unknown[]>('db_list_messages', { chatId: latest.id, limit: 1 })
         if (Array.isArray(rows) && rows.length === 0) {
           setAlertMsg('Your most recent chat is empty. Send a message first before creating a new chat.')
           return
         }
-      } catch { }
+      } catch {
+        // best-effort
+      }
     }
 
     const id = await createNewChat()

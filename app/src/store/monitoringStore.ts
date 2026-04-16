@@ -3,6 +3,14 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { persist } from 'zustand/middleware'
 
+// Module-level cleanup handle (avoids window any-casting)
+interface MonitoringCleanup {
+  unlistenSystem: () => void
+  unlistenModel: () => void
+  unlistenStatus: () => void
+}
+let monitoringCleanupHandle: MonitoringCleanup | null = null
+
 // Types for monitoring data
 export interface SystemMetrics {
   cpuUsage: number
@@ -86,54 +94,55 @@ export interface OllamaProcess {
   size_vram: number
 }
 
+// Helpers to normalize backend snake_case to frontend camelCase and coerce numbers
+type RawMetrics = Record<string, unknown>
+
+function toNumber(v: unknown, fallback = 0): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function normalizeSystemMetrics(obj: RawMetrics): SystemMetrics {
+  return {
+    cpuUsage: toNumber(obj?.cpu_usage ?? obj?.cpuUsage),
+    memoryUsage: toNumber(obj?.memory_usage ?? obj?.memoryUsage),
+    memoryTotal: toNumber(obj?.memory_total ?? obj?.memoryTotal),
+    diskUsage: toNumber(obj?.disk_usage ?? obj?.diskUsage),
+    diskTotal: toNumber(obj?.disk_total ?? obj?.diskTotal),
+    networkRx: toNumber(obj?.network_rx ?? obj?.networkRx),
+    networkTx: toNumber(obj?.network_tx ?? obj?.networkTx),
+    timestamp: toNumber(obj?.timestamp)
+  }
+}
+
+function normalizeModelMetrics(obj: RawMetrics): ModelMetrics {
+  return {
+    modelName: String(obj?.model_name ?? obj?.modelName ?? 'unknown'),
+    tokenRate: toNumber(obj?.token_rate ?? obj?.tokenRate),
+    responseTime: toNumber(obj?.response_time ?? obj?.responseTime),
+    memoryUsage: toNumber(obj?.memory_usage ?? obj?.memoryUsage),
+    activeConnections: toNumber(obj?.active_connections ?? obj?.activeConnections),
+    totalRequests: toNumber(obj?.total_requests ?? obj?.totalRequests),
+    errorRate: toNumber(obj?.error_rate ?? obj?.errorRate),
+    timestamp: toNumber(obj?.timestamp)
+  }
+}
+
+function normalizeOllamaStatus(obj: RawMetrics): OllamaStatus {
+  const rawModels = obj?.models_loaded ?? obj?.modelsLoaded
+  const models = Array.isArray(rawModels) ? rawModels : []
+  return {
+    version: String(obj?.version ?? 'unknown'),
+    uptime: toNumber(obj?.uptime),
+    modelsLoaded: models.map((m: unknown) => String(m)),
+    activeStreams: toNumber(obj?.active_streams ?? obj?.activeStreams),
+    queueLength: toNumber(obj?.queue_length ?? obj?.queueLength),
+    serverHealth: (obj?.server_health ?? obj?.serverHealth ?? 'error') as OllamaStatus['serverHealth'],
+    lastHealthCheck: toNumber(obj?.last_health_check ?? obj?.lastHealthCheck)
+  }
+}
+
 export const useMonitoringStore = create<MonitoringState>()(persist((set, get) => ({
-  // Helpers to normalize backend snake_case to frontend camelCase and coerce numbers
-  // Keep these inside the factory to avoid top-level pollution
-  _toNumber: (v: any, fallback = 0): number => {
-    const n = typeof v === 'number' ? v : Number(v)
-    return Number.isFinite(n) ? n : fallback
-  },
-  _normalizeSystemMetrics: (obj: any): SystemMetrics => {
-    const toNum = (get() as any)._toNumber
-    return {
-      cpuUsage: toNum(obj?.cpu_usage ?? obj?.cpuUsage),
-      memoryUsage: toNum(obj?.memory_usage ?? obj?.memoryUsage),
-      memoryTotal: toNum(obj?.memory_total ?? obj?.memoryTotal),
-      diskUsage: toNum(obj?.disk_usage ?? obj?.diskUsage),
-      diskTotal: toNum(obj?.disk_total ?? obj?.diskTotal),
-      networkRx: toNum(obj?.network_rx ?? obj?.networkRx),
-      networkTx: toNum(obj?.network_tx ?? obj?.networkTx),
-      timestamp: toNum(obj?.timestamp)
-    }
-  },
-  _normalizeModelMetrics: (obj: any): ModelMetrics => {
-    const toNum = (get() as any)._toNumber
-    return {
-      modelName: obj?.model_name ?? obj?.modelName ?? 'unknown',
-      tokenRate: toNum(obj?.token_rate ?? obj?.tokenRate),
-      responseTime: toNum(obj?.response_time ?? obj?.responseTime),
-      memoryUsage: toNum(obj?.memory_usage ?? obj?.memoryUsage),
-      activeConnections: toNum(obj?.active_connections ?? obj?.activeConnections),
-      totalRequests: toNum(obj?.total_requests ?? obj?.totalRequests),
-      errorRate: toNum(obj?.error_rate ?? obj?.errorRate),
-      timestamp: toNum(obj?.timestamp)
-    }
-  },
-  _normalizeOllamaStatus: (obj: any): OllamaStatus => {
-    const toNum = (get() as any)._toNumber
-    const models = Array.isArray(obj?.models_loaded ?? obj?.modelsLoaded)
-      ? (obj?.models_loaded ?? obj?.modelsLoaded)
-      : []
-    return {
-      version: String(obj?.version ?? 'unknown'),
-      uptime: toNum(obj?.uptime),
-      modelsLoaded: models.map((m: any) => String(m)),
-      activeStreams: toNum(obj?.active_streams ?? obj?.activeStreams),
-      queueLength: toNum(obj?.queue_length ?? obj?.queueLength),
-      serverHealth: (obj?.server_health ?? obj?.serverHealth ?? 'error') as OllamaStatus['serverHealth'],
-      lastHealthCheck: toNum(obj?.last_health_check ?? obj?.lastHealthCheck)
-    }
-  },
 
   // Initial state
   systemMetrics: [],
@@ -161,9 +170,8 @@ export const useMonitoringStore = create<MonitoringState>()(persist((set, get) =
       })
 
       // Listen for system metrics events
-      const unlistenSystem = await listen('monitoring:system-metrics', (event: any) => {
-        const raw = event.payload
-        const metrics = (get() as any)._normalizeSystemMetrics(raw)
+      const unlistenSystem = await listen<RawMetrics>('monitoring:system-metrics', (event) => {
+        const metrics = normalizeSystemMetrics(event.payload)
         set(state => ({
           currentSystemMetrics: metrics,
           systemMetrics: [...state.systemMetrics.slice(-state.maxHistoryLength + 1), metrics]
@@ -171,9 +179,8 @@ export const useMonitoringStore = create<MonitoringState>()(persist((set, get) =
       })
 
       // Listen for model metrics events
-      const unlistenModel = await listen('monitoring:model-metrics', (event: any) => {
-        const raw = event.payload
-        const metrics = (get() as any)._normalizeModelMetrics(raw)
+      const unlistenModel = await listen<RawMetrics>('monitoring:model-metrics', (event) => {
+        const metrics = normalizeModelMetrics(event.payload)
         set(state => ({
           currentModelMetrics: {
             ...state.currentModelMetrics,
@@ -184,14 +191,13 @@ export const useMonitoringStore = create<MonitoringState>()(persist((set, get) =
       })
 
       // Listen for Ollama status updates
-      const unlistenStatus = await listen('monitoring:ollama-status', (event: any) => {
-        const raw = event.payload
-        const status = (get() as any)._normalizeOllamaStatus(raw)
+      const unlistenStatus = await listen<RawMetrics>('monitoring:ollama-status', (event) => {
+        const status = normalizeOllamaStatus(event.payload)
         set({ ollamaStatus: status })
       })
 
-        // Store cleanup functions globally for stopping
-        ; (window as any).monitoringCleanup = {
+        // Store cleanup functions for stopping
+        monitoringCleanupHandle = {
           unlistenSystem,
           unlistenModel,
           unlistenStatus
@@ -210,12 +216,11 @@ export const useMonitoringStore = create<MonitoringState>()(persist((set, get) =
       await invoke('stop_system_monitoring')
 
       // Clean up event listeners
-      const cleanup = (window as any).monitoringCleanup
-      if (cleanup) {
-        cleanup.unlistenSystem?.()
-        cleanup.unlistenModel?.()
-        cleanup.unlistenStatus?.()
-        delete (window as any).monitoringCleanup
+      if (monitoringCleanupHandle) {
+        monitoringCleanupHandle.unlistenSystem()
+        monitoringCleanupHandle.unlistenModel()
+        monitoringCleanupHandle.unlistenStatus()
+        monitoringCleanupHandle = null
       }
 
       console.log('📊 Monitoring stopped')
@@ -251,8 +256,8 @@ export const useMonitoringStore = create<MonitoringState>()(persist((set, get) =
   // Get current system health
   getSystemHealth: async () => {
     try {
-      const raw = await invoke<any>('get_system_metrics')
-      const metrics = (get() as any)._normalizeSystemMetrics(raw)
+      const raw = await invoke<RawMetrics>('get_system_metrics')
+      const metrics = normalizeSystemMetrics(raw)
       set(state => ({
         currentSystemMetrics: metrics,
         // Add snapshot to history so charts aren't empty
@@ -266,10 +271,10 @@ export const useMonitoringStore = create<MonitoringState>()(persist((set, get) =
   // Get model performance data
   getModelPerformance: async (modelName?: string) => {
     try {
-      const raw = await invoke<any[]>('get_model_metrics', {
+      const raw = await invoke<RawMetrics[]>('get_model_metrics', {
         model_name: modelName
       })
-      const normalized: ModelMetrics[] = (raw || []).map((m: any) => (get() as any)._normalizeModelMetrics(m))
+      const normalized: ModelMetrics[] = (raw || []).map((m) => normalizeModelMetrics(m))
       const metricsMap: Record<string, ModelMetrics> = {}
       normalized.forEach(metric => { metricsMap[metric.modelName] = metric })
 
@@ -285,8 +290,8 @@ export const useMonitoringStore = create<MonitoringState>()(persist((set, get) =
   // Get Ollama server status
   getOllamaStatus: async () => {
     try {
-      const raw = await invoke<any>('get_ollama_status')
-      const status = (get() as any)._normalizeOllamaStatus(raw)
+      const raw = await invoke<RawMetrics>('get_ollama_status')
+      const status = normalizeOllamaStatus(raw)
       set({ ollamaStatus: status })
     } catch (error) {
       console.error('Failed to get Ollama status:', error)
@@ -296,7 +301,7 @@ export const useMonitoringStore = create<MonitoringState>()(persist((set, get) =
   // Running models (ollama ps)
   getRunningModels: async () => {
     try {
-      const raw = await invoke<any>('ollama_ps')
+      const raw = await invoke<{ models?: OllamaProcess[] }>('ollama_ps')
       const models = raw?.models || []
       set({ runningModels: models })
     } catch (error) {
@@ -331,11 +336,10 @@ export const useMonitoringStore = create<MonitoringState>()(persist((set, get) =
 // Auto-cleanup on page unload
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
-    const cleanup = (window as any).monitoringCleanup
-    if (cleanup) {
-      cleanup.unlistenSystem?.()
-      cleanup.unlistenModel?.()
-      cleanup.unlistenStatus?.()
+    if (monitoringCleanupHandle) {
+      monitoringCleanupHandle.unlistenSystem()
+      monitoringCleanupHandle.unlistenModel()
+      monitoringCleanupHandle.unlistenStatus()
     }
   })
 }

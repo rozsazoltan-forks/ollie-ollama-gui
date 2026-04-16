@@ -31,12 +31,27 @@ export interface ModelInfo {
   }
 }
 
+export interface PullProgress {
+  status?: string
+  completed?: number
+  downloaded?: number
+  total?: number
+  size?: number
+}
+
+export interface PullState {
+  name: string
+  status: string
+  progress?: PullProgress
+  error?: string
+}
+
 interface ModelsState {
   models: OllamaModel[]
   isLoading: boolean
   error: string | null
   // Pull progress keyed by pull_id
-  pulls: Record<string, any>
+  pulls: Record<string, PullState>
 
   // Actions
   fetchModels: () => Promise<void>
@@ -78,44 +93,47 @@ export const useModelsStore = create<ModelsState>((set) => ({
       set((s) => ({ pulls: { ...s.pulls, [pullId]: { name, progress: { status: 'starting' }, status: 'starting' } } }))
 
       // Attach listeners lazily per pull
-      const unlistenStart = await listen('models:pull-start', (e: any) => {
+      const unlistenStart = await listen<{ pull_id: string }>('models:pull-start', (e) => {
         const { pull_id } = e.payload
         if (pull_id !== pullId) return
         set((s) => ({ pulls: { ...s.pulls, [pull_id]: { ...s.pulls[pull_id], status: 'starting' } } }))
       })
-      const unlistenProgress = await listen('models:pull-progress', (e: any) => {
+      const unlistenProgress = await listen<{ pull_id: string; progress: PullProgress }>('models:pull-progress', (e) => {
         const { pull_id, progress } = e.payload
         if (pull_id !== pullId) return
-        set((s) => ({ pulls: { ...s.pulls, [pull_id]: { ...(s.pulls[pull_id] || {}), progress, status: 'in-progress' } } }))
+        set((s) => ({ pulls: { ...s.pulls, [pull_id]: { ...(s.pulls[pull_id] || { name, status: 'in-progress' }), progress, status: 'in-progress' } } }))
       })
-      const unlistenError = await listen('models:pull-error', (e: any) => {
+      const unlistenError = await listen<{ pull_id: string; error: string }>('models:pull-error', (e) => {
         const { pull_id, error } = e.payload
         if (pull_id !== pullId) return
-        set((s) => ({ pulls: { ...s.pulls, [pull_id]: { ...(s.pulls[pull_id] || {}), error, status: 'error' } } }))
+        set((s) => ({ pulls: { ...s.pulls, [pull_id]: { ...(s.pulls[pull_id] || { name, status: 'error' }), error, status: 'error' } } }))
         setTimeout(() => {
-          set((s) => { const { [pull_id]: _, ...rest } = s.pulls; return { pulls: rest } })
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          set((s) => { const { [pull_id]: _removed, ...rest } = s.pulls; return { pulls: rest } })
           cleanupListeners()
         }, 5000)
       })
-      const unlistenCancelled = await listen('models:pull-cancelled', (e: any) => {
+      const unlistenCancelled = await listen<{ pull_id: string }>('models:pull-cancelled', (e) => {
         const { pull_id } = e.payload
         if (pull_id !== pullId) return
-        set((s) => ({ pulls: { ...s.pulls, [pull_id]: { ...(s.pulls[pull_id] || {}), status: 'cancelled' } } }))
+        set((s) => ({ pulls: { ...s.pulls, [pull_id]: { ...(s.pulls[pull_id] || { name, status: 'cancelled' }), status: 'cancelled' } } }))
         setTimeout(() => {
-          set((s) => { const { [pull_id]: _, ...rest } = s.pulls; return { pulls: rest } })
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          set((s) => { const { [pull_id]: _removed, ...rest } = s.pulls; return { pulls: rest } })
           cleanupListeners()
         }, 1500)
       })
       const cleanupListeners = () => {
         unlistenStart(); unlistenProgress(); unlistenError(); unlistenCancelled(); unlistenComplete()
       }
-      const unlistenComplete = await listen('models:pull-complete', (e: any) => {
+      const unlistenComplete = await listen<{ pull_id: string }>('models:pull-complete', (e) => {
         const { pull_id } = e.payload
         if (pull_id !== pullId) return
-        set((s) => ({ pulls: { ...s.pulls, [pull_id]: { ...(s.pulls[pull_id] || {}), status: 'complete' } } }))
+        set((s) => ({ pulls: { ...s.pulls, [pull_id]: { ...(s.pulls[pull_id] || { name, status: 'complete' }), status: 'complete' } } }))
         useModelsStore.getState().fetchModels().catch(() => { })
         setTimeout(() => {
-          set((s) => { const { [pull_id]: _, ...rest } = s.pulls; return { pulls: rest } })
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          set((s) => { const { [pull_id]: _removed, ...rest } = s.pulls; return { pulls: rest } })
           cleanupListeners()
         }, 2000)
       })

@@ -32,7 +32,7 @@ export const ModeSelectionWizard: React.FC = () => {
     useEffect(() => {
         const checkSetup = async () => {
             try {
-                const settings = await invoke<any>('settings_get')
+                const settings = await invoke<{ setup_completed?: boolean }>('settings_get')
                 if (!settings.setup_completed) {
                     setIsOpen(true)
                 }

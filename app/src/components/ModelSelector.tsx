@@ -61,18 +61,20 @@ export default function ModelSelector() {
   // Get provider icon
   const ProviderIcon = PROVIDER_ICONS[providerType as keyof typeof PROVIDER_ICONS] || Cloud
 
+  // fetchModels is stable; omitting it avoids a re-fetch loop when the function reference changes
   useEffect(() => {
     if (!isCloudMode) {
       fetchModels()
     }
-  }, [isCloudMode])
+  }, [isCloudMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select first cloud model if none selected
+  // currentModel, isCustomModel, setCurrentModel intentionally omitted — including them would cause infinite loops
   useEffect(() => {
     if (isCloudMode && cloudModels.length > 0 && (!currentModel || !cloudModels.some(m => m.id === currentModel)) && !isCustomModel) {
       setCurrentModel(cloudModels[0].id)
     }
-  }, [isCloudMode, activeProviderId, cloudModels])
+  }, [isCloudMode, activeProviderId, cloudModels]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUseCustomModel = () => {
     if (customModelId.trim()) {
