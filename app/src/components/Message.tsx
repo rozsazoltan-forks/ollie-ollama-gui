@@ -8,6 +8,29 @@ interface MessageProps {
   message: ChatMessage
 }
 
+function FileChip({ name, content }: { name: string; content: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const lineCount = content.split('\n').length
+
+  return (
+    <div className="ui-surface rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 w-fit max-w-full">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors w-full text-left"
+      >
+        <span>📎</span>
+        <span className="font-medium truncate max-w-[200px]">{name}</span>
+        <span className="text-gray-400 dark:text-gray-500 ml-auto shrink-0">{lineCount} lines · {expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && (
+        <pre className="text-xs font-mono text-gray-700 dark:text-gray-300 p-3 overflow-auto max-h-72 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 whitespace-pre-wrap break-all">
+          {content}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 function Message({ message }: MessageProps) {
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -136,6 +159,15 @@ function Message({ message }: MessageProps) {
                   </div>
                 )}
 
+                {/* Attached Files */}
+                {message.files && message.files.length > 0 && (
+                  <div className="flex flex-col gap-2 mb-4">
+                    {message.files.map((file, i) => (
+                      <FileChip key={i} name={file.name} content={file.content} />
+                    ))}
+                  </div>
+                )}
+
                 {/* Message Content */}
                 <div className="max-w-full overflow-hidden text-gray-900 dark:text-gray-100 leading-relaxed text-sm">
                   {isUser ? (
@@ -210,5 +242,6 @@ export default memo(Message, (prev, next) => {
   if (prev.message.content !== next.message.content) return false
   if (prev.message.isStreaming !== next.message.isStreaming) return false
   if (prev.message.toolCalls !== next.message.toolCalls) return false
+  if (prev.message.files !== next.message.files) return false
   return true
 })
