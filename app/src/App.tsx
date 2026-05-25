@@ -10,15 +10,43 @@ import MonitoringDashboard from './components/MonitoringDashboard.tsx'
 import { useUIStore } from './store/uiStore'
 import { useMonitoringStore } from './store/monitoringStore'
 import { useSettingsStore } from './store/settingsStore'
-import { useEffect } from 'react'
+import { useChatStore } from './store/chatStore'
+import { useKeyboardShortcuts } from './lib/shortcuts'
+import { useEffect, useCallback } from 'react'
 import TitleBar from './components/TitleBar.tsx'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 function App() {
-  const { view, zenMode } = useUIStore()
+  const { view, zenMode, toggleSidebar } = useUIStore()
   const { monitoringEnabled, isMonitoring, startMonitoring } = useMonitoringStore()
   const { theme, loadSettingsFromBackend } = useSettingsStore()
+  const createNewChat = useChatStore(state => state.createNewChat)
+  const currentModel = useChatStore(state => state.currentModel)
   const isZenMode = view === 'chat' && zenMode
+
+  const handleNewChat = useCallback(() => {
+    createNewChat({ model: currentModel || undefined })
+  }, [createNewChat, currentModel])
+
+  const handleFocusModelPicker = useCallback(() => {
+    window.dispatchEvent(new Event('ollie:focus-model-picker'))
+  }, [])
+
+  const handleFocusInput = useCallback(() => {
+    const textarea = document.querySelector<HTMLTextAreaElement>('textarea[placeholder*="Message"]')
+    textarea?.focus()
+  }, [])
+
+  const handleToggleSidebar = useCallback(() => {
+    toggleSidebar()
+  }, [toggleSidebar])
+
+  useKeyboardShortcuts({
+    onNewChat: handleNewChat,
+    onFocusModelPicker: handleFocusModelPicker,
+    onFocusInput: handleFocusInput,
+    onToggleSidebar: handleToggleSidebar,
+  })
 
   // Load settings on mount
   useEffect(() => {

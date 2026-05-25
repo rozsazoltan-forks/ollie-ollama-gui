@@ -44,6 +44,12 @@ export default function ModelSelector() {
   const { models, isLoading, error, fetchModels } = useModelsStore()
   const { appMode, providers, activeProviderId } = useSettingsStore()
 
+  useEffect(() => {
+    const handler = () => setIsOpen(true)
+    window.addEventListener('ollie:focus-model-picker', handler)
+    return () => window.removeEventListener('ollie:focus-model-picker', handler)
+  }, [])
+
   // Get active provider info
   const activeProvider = providers.find(p => p.id === activeProviderId)
   const providerType = activeProvider?.provider_type || 'ollama'
