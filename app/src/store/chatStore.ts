@@ -31,6 +31,11 @@ export interface ChatOptions {
   maxTokens?: number
 }
 
+function buildLlmContent(msg: ChatMessage): string {
+  if (!msg.files?.length) return msg.content
+  return msg.content + msg.files.map(f => `\n\n--- File: ${f.name} ---\n${f.content}\n---`).join('')
+}
+
 interface ChatState {
   messages: ChatMessage[]
   currentChatId: string | null
@@ -506,16 +511,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const latest = get()
       const apiMessages = latest.messages
         .filter(msg => msg.role !== 'assistant' || msg.content.trim() !== '')
-        .map(msg => {
-          let llmContent = msg.content
-          if (msg.files && msg.files.length > 0) {
-            const fileBlocks = msg.files
-              .map(f => `\n\n--- File: ${f.name} ---\n${f.content}\n---`)
-              .join('')
-            llmContent = llmContent + fileBlocks
-          }
-          return { role: msg.role, content: llmContent, images: msg.images }
-        })
+        .map(msg => ({ role: msg.role, content: buildLlmContent(msg), images: msg.images }))
 
       // Inject system prompt if it exists
       const freshState = get()
@@ -782,16 +778,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const latest = get()
       const apiMessages = latest.messages
         .filter(msg => msg.role !== 'assistant' || msg.content.trim() !== '')
-        .map(msg => {
-          let llmContent = msg.content
-          if (msg.files && msg.files.length > 0) {
-            const fileBlocks = msg.files
-              .map(f => `\n\n--- File: ${f.name} ---\n${f.content}\n---`)
-              .join('')
-            llmContent = llmContent + fileBlocks
-          }
-          return { role: msg.role, content: llmContent, images: msg.images }
-        })
+        .map(msg => ({ role: msg.role, content: buildLlmContent(msg), images: msg.images }))
 
       if (latest.currentSystemPrompt) {
         apiMessages.unshift({ role: 'system', content: latest.currentSystemPrompt, images: undefined })
