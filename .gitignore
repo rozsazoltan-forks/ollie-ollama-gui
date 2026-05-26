@@ -2,3 +2,7 @@
 logs.md
 .github/copilot-instructions.md
 docs/superpowers/
+
+.claude/
+.vscode/
+

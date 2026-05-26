@@ -34,6 +34,19 @@ jobs:
           projectPath: src-tauri
           args: --verbose
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log "${PREV_TAG}".."${{ github.ref_name }}" --pretty=format:"- %s" --no-merges)
+          else
+            LOG=$(git log "${{ github.ref_name }}" --pretty=format:"- %s" --no-merges)
+          fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -42,12 +55,14 @@ jobs:
         with:
           name: "Ollie ${{ github.ref_name }}"
           body: |
-            Linux build for Ollie.
+            ## What's changed
 
-            - OS: Linux (x86_64)
-            - Contents: AppImage, deb (if available)
+            ${{ steps.changelog.outputs.CHANGELOG }}
 
-            Notes: Requires the Ollama daemon running locally (default http://localhost:11434).
+            ---
+            **OS:** Linux (x86_64)
+            **Packages:** AppImage (universal), deb (Debian/Ubuntu), rpm (Fedora/RHEL)
+            **Requires:** Ollama running locally (default `http://localhost:11434`)
           draft: false
           prerelease: false
           files: |
