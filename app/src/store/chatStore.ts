@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useSettingsStore } from './settingsStore'
 import { useModelsStore } from './modelsStore'
+import { trimToContextBudget } from '../lib/contextBudget'
 
 export interface ToolCallState {
   id: string
@@ -507,37 +508,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // NOW set streaming state after all listeners are ready (before invoke)
       state.setStreaming(true, assistantMessageId)
 
-      // Prepare messages for API from a fresh snapshot to avoid stale state
-      const latest = get()
-      const apiMessages = latest.messages
-        .filter(msg => msg.role !== 'assistant' || msg.content.trim() !== '')
-        .map(msg => ({ role: msg.role, content: buildLlmContent(msg), images: msg.images }))
-
-      // Inject system prompt if it exists
-      const freshState = get()
-      if (freshState.currentSystemPrompt) {
-        apiMessages.unshift({ role: 'system', content: freshState.currentSystemPrompt, images: undefined })
-      }
-
-      // Get active provider ID from settings
-      const { activeProviderId, providers } = useSettingsStore.getState()
-
-      const { appMode } = useSettingsStore.getState()
+      // Resolve provider first (needed for context budget calculation)
+      const { activeProviderId, providers, appMode } = useSettingsStore.getState()
       const { models } = useModelsStore.getState()
       let providerId = activeProviderId
 
-      // Intelligent Provider Selection
-      // 1. If the model is in our known local Ollama models list, force Ollama provider
       const isLocalModel = models.some(m => m.name === state.currentModel)
       const ollamaProvider = providers.find(p => p.provider_type === 'ollama')
-
       if (isLocalModel && ollamaProvider) {
         providerId = ollamaProvider.id
       } else if (appMode === 'local' && ollamaProvider) {
-        // Fallback: If we are strictly in local mode, default to Ollama
         providerId = ollamaProvider.id
       }
-      // Otherwise use the active (Cloud) provider
+
+      const resolvedProvider = providers.find(p => p.id === providerId)
+      const providerType = resolvedProvider?.provider_type ?? 'other'
+
+      // Prepare messages for API from a fresh snapshot to avoid stale state
+      const latest = get()
+      const rawMessages = latest.messages
+        .filter(msg => msg.role !== 'assistant' || msg.content.trim() !== '')
+        .map(msg => ({ role: msg.role, content: buildLlmContent(msg), images: msg.images }))
+
+      const trimmed = trimToContextBudget(rawMessages, latest.currentSystemPrompt, providerType, state.currentModel ?? '')
+      const apiMessages = [...trimmed]
+
+      if (latest.currentSystemPrompt) {
+        apiMessages.unshift({ role: 'system', content: latest.currentSystemPrompt, images: undefined })
+      }
 
       // Send the chat request
       await invoke('chat_stream', {
@@ -774,16 +772,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       get().setStreaming(true, assistantMessageId)
 
-      // Prepare messages + resolve provider
-      const latest = get()
-      const apiMessages = latest.messages
-        .filter(msg => msg.role !== 'assistant' || msg.content.trim() !== '')
-        .map(msg => ({ role: msg.role, content: buildLlmContent(msg), images: msg.images }))
-
-      if (latest.currentSystemPrompt) {
-        apiMessages.unshift({ role: 'system', content: latest.currentSystemPrompt, images: undefined })
-      }
-
+      // Resolve provider first (needed for context budget calculation)
       const { activeProviderId, providers, appMode } = useSettingsStore.getState()
       const { models } = useModelsStore.getState()
       let providerId = activeProviderId
@@ -794,6 +783,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
         providerId = ollamaProvider.id
       } else if (appMode === 'local' && ollamaProvider) {
         providerId = ollamaProvider.id
+      }
+
+      const resolvedProvider = providers.find(p => p.id === providerId)
+      const providerType = resolvedProvider?.provider_type ?? 'other'
+
+      const latest = get()
+      const rawMessages = latest.messages
+        .filter(msg => msg.role !== 'assistant' || msg.content.trim() !== '')
+        .map(msg => ({ role: msg.role, content: buildLlmContent(msg), images: msg.images }))
+
+      const trimmed = trimToContextBudget(rawMessages, latest.currentSystemPrompt, providerType, currentModel ?? '')
+      const apiMessages = [...trimmed]
+
+      if (latest.currentSystemPrompt) {
+        apiMessages.unshift({ role: 'system', content: latest.currentSystemPrompt, images: undefined })
       }
 
       await invoke('chat_stream', {
