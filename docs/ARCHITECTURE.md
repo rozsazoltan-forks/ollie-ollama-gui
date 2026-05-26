@@ -1,7 +1,7 @@
 # Ollie — Architecture Analysis & Roadmap
 
 > Last updated: 2026-05-26  
-> Version surveyed: v0.2.6  
+> Version surveyed: v0.2.7  
 > Purpose: Track architectural weaknesses and the path to a solid foundation.
 
 ---
@@ -22,31 +22,18 @@ Desktop AI chat client bridging local (Ollama) and cloud (OpenAI, Anthropic, Goo
 
 ## Critical Issues (fix first)
 
-### C1 — `chatStore.ts` is a God Object
+### C1 — `chatStore.ts` is a God Object ✅ DONE
 
-**956 lines. One store handles:**
-- In-memory message state
-- All SQLite persistence (direct `invoke()` calls)
-- Provider selection logic
-- Streaming event orchestration (6 listeners per stream)
-- Drip queue animation (30ms timer)
-- Tool call state tracking
-- Auto-title generation
-- Message edit + regeneration (~200 lines duplicated from `sendMessage`)
+Extracted 974-line god object into focused services:
 
-`sendMessage` and `editUserMessage` are nearly identical 200-line functions. They will diverge. Any bug fixed in one will be missed in the other.
-
-**For an AI chat app, conversation management is the core domain.** It must be isolated, testable, and composable. Right now it is none of these.
-
-**Target architecture:**
 ```
-conversationService.ts   — pure business logic (no React, no Tauri imports)
-streamingPipeline.ts     — drip queue, cancellation, event wiring (shared by send + edit)
-persistenceService.ts    — all DB invoke() calls, one place
-chatStore.ts             — thin Zustand slice: UI state only, delegates to services
+app/src/services/persistenceService.ts  — all DB invoke() wrappers
+app/src/services/conversationService.ts — provider resolution, context budget, API messages
+app/src/services/streamingPipeline.ts   — drip queue, 6 event listeners, render throttle
+app/src/store/chatStore.ts              — thin Zustand slice (~280 lines, pure state)
 ```
 
-**Files to touch:** `app/src/store/chatStore.ts`, new `app/src/services/` directory.
+`sendMessage` and `editUserMessage` share the same streaming pipeline — no duplication.
 
 ---
 
@@ -98,28 +85,18 @@ When a future version changes the schema non-additively (rename column, restruct
 
 ---
 
-### H2 — Global `lazy_static` state instead of Tauri managed state
+### H2 — Global `lazy_static` state instead of Tauri managed state ✅ DONE
 
-`ACTIVE_STREAMS`, `MONITORING_ACTIVE`, `ACTIVE_MCP_CLIENTS` are all `lazy_static` globals:
+Replaced all three globals with Tauri managed state structs registered in `setup()`:
 
 ```rust
-lazy_static! {
-    static ref ACTIVE_STREAMS: Mutex<HashMap<String, Arc<AtomicBool>>> = ...;
-    static ref ACTIVE_MCP_CLIENTS: Mutex<HashMap<String, McpClient>> = ...;
-}
-static MONITORING_ACTIVE: AtomicBool = AtomicBool::new(false);
+// lib.rs
+app.manage(AppStreams::default());      // replaces ACTIVE_STREAMS
+app.manage(MonitoringState::default()); // replaces MONITORING_ACTIVE
+app.manage(McpClients::default());      // replaces ACTIVE_MCP_CLIENTS
 ```
 
-Problems:
-- No lifecycle (no cleanup on app exit)
-- Untestable (state bleeds between tests)
-- Bypass Tauri's dependency injection model
-
-Tauri v2 has `app.manage(T)` and `State<T>` in commands — designed exactly for this.
-
-**Fix:** Replace all globals with managed state structs registered in `setup()`.
-
-**Files to touch:** `src-tauri/src/commands/chat.rs`, `src-tauri/src/commands/monitoring.rs`, `src-tauri/src/mcp/mod.rs`, `src-tauri/src/lib.rs`.
+Commands receive state via `State<T>` injection. MCP commands fully rewritten to use `State<McpClients>`. `ChatOrchestrator` takes `Arc<Mutex<HashMap<String, Arc<McpClient>>>>` directly.
 
 ---
 
@@ -154,17 +131,9 @@ UI decisions (show image button, enable tools, context budget) driven by capabil
 
 ---
 
-### H4 — Dual settings persistence (two sources of truth)
+### H4 — Dual settings persistence (two sources of truth) ✅ DONE
 
-Settings exist in:
-1. Backend JSON: `~/.config/ollie/settings.json`
-2. Frontend localStorage: via Zustand `persist` middleware
-
-On app start, frontend loads from localStorage, then backend overwrites. If these diverge (corrupted file, version upgrade, manual edit), behavior is undefined.
-
-**Rule:** Backend is single source of truth. Frontend is a read cache. `settingsStore` should be non-persisted — mount reads from backend, all writes go to backend only. `localStorage` adds zero value here and creates split-brain risk.
-
-**Files to touch:** `app/src/store/settingsStore.ts`.
+Removed Zustand `persist` middleware from `settingsStore`. Backend is now the single source of truth. `loadSettingsFromBackend()` called on mount; all writes go to backend only. No localStorage involvement.
 
 ---
 
@@ -271,14 +240,14 @@ All DB writes go through a 5-connection pool. Heavy concurrent writes (monitorin
 
 ```
 Phase 1 — Foundation (data safety + testability)
-  C3  DB migration framework
-  H2  Tauri managed state (replace lazy_static globals)
-  H4  Settings single source of truth
+  C3  DB migration framework          ✅ DONE (sqlx migrate framework)
+  H2  Tauri managed state             ✅ DONE (replace lazy_static globals)
+  H4  Settings single source of truth ✅ DONE (remove persist middleware)
 
 Phase 2 — Core domain (correctness)
-  C1  Split chatStore (extract streaming pipeline + persistence service)
-  C2  Context window management
-  M1  Shared HTTP client
+  C1  Split chatStore                 ✅ DONE (extract streaming pipeline + persistence service)
+  C2  Context window management       ✅ DONE (trimToContextBudget in conversationService)
+  M1  Shared HTTP client              — next
 
 Phase 3 — Reliability
   M2  Typed errors
@@ -301,13 +270,14 @@ Phase 5 — Polish
 
 | Area | State |
 |---|---|
-| Provider abstraction | Good trait, missing capabilities |
-| Streaming pipeline | Works, dangerously duplicated |
-| DB persistence | Works, no migrations |
-| Error handling | Opaque strings throughout |
-| Security | API keys plaintext |
-| State management | God object + global statics |
-| Context management | None |
-| MCP reliability | No reconnection |
+| Provider abstraction | Good trait, missing capabilities (H3 pending) |
+| Streaming pipeline | Extracted service, shared, render-throttled |
+| DB persistence | sqlx migrate framework, WAL mode |
+| Error handling | Opaque strings throughout (M2 pending) |
+| Security | API keys plaintext (H1 pending) |
+| State management | Tauri managed state + thin Zustand store |
+| Context management | trimToContextBudget in conversationService |
+| Settings | Backend single source of truth |
+| MCP reliability | No reconnection (M3 pending) |
 | Testing | Zero tests |
-| Performance | No HTTP pooling, no pagination |
+| Performance | No HTTP pooling (M1 next), no pagination |

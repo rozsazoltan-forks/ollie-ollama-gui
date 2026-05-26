@@ -61,7 +61,8 @@ Frontend calls backend via `invoke('command_name', args)`. Real-time streaming u
 
 ### Frontend Layout (`app/src/`)
 
-- `store/` — Zustand stores: `chatStore.ts`, `settingsStore.ts`, `modelsStore.ts`, `monitoringStore.ts`, `mcpStore.ts`, `uiStore.ts`, `setupStore.ts`
+- `store/` — Zustand stores: `chatStore.ts` (thin state slice), `settingsStore.ts`, `modelsStore.ts`, `monitoringStore.ts`, `mcpStore.ts`, `uiStore.ts`, `setupStore.ts`
+- `services/` — Business logic extracted from stores: `conversationService.ts` (provider resolution, context budget, API messages), `persistenceService.ts` (all DB invoke wrappers), `streamingPipeline.ts` (drip queue, event listeners, render throttle)
 - `components/` — React UI components
 - `routes/` — Page components: `chat.tsx`, `models.tsx`, `settings.tsx`
 - `lib/` — Utilities: `markdown.tsx` (rehype pipeline), `pdf.ts`, `shortcuts.ts` (keyboard hook), `export.ts` (Markdown download), `hooks.ts`
@@ -73,19 +74,21 @@ Frontend calls backend via `invoke('command_name', args)`. Real-time streaming u
 - **Provider config**: `ProviderConfig` (id, name, type, credentials, base_url) stored in settings; `ChatOrchestrator` selects provider at runtime
 - **Database path**: `~/.config/ollie/app.db`
 - **Settings path**: `~/.config/ollie/settings.json` (atomic write: temp file + rename)
-- **Streaming cancellation**: `Arc<AtomicBool>` cancel tokens per stream ID; frontend calls `chat_cancel({ streamId })` or omits streamId to cancel all
+- **Tauri managed state**: Three state structs registered in `setup()` — `AppStreams` (active stream cancel tokens), `MonitoringState` (monitoring flag), `McpClients` (active MCP connections). Commands receive via `State<T>` injection. No `lazy_static` globals.
+- **Streaming cancellation**: `Arc<AtomicBool>` cancel tokens per stream ID in `AppStreams`; frontend calls `chat_cancel({ streamId })` or omits streamId to cancel all
 - **Cancellation ordering**: store with `Ordering::Release`, load with `Ordering::Acquire`
 - **Backend results**: Rust commands return `Result<T, String>`; errors propagate as strings to frontend
-- **Drip queue**: `chatStore` buffers streaming tokens and releases them at 30ms intervals for smooth animation; on cancel, pending text is discarded (not flushed)
+- **Drip queue**: `streamingPipeline.ts` buffers streaming tokens and releases at 30ms intervals; render pushed to React at most 10fps (100ms throttle); on cancel, pending text discarded (not flushed)
 - **File attachments**: Files stored in `meta_json` as `{ files: [{ name, content }] }` (same field as `images`). File content is injected into LLM payload via `buildLlmContent()` helper but never stored in `messages.content`. Rendered as collapsible chips in `Message.tsx`.
 - **Sidebar queries**: Uses `db_list_chats_with_preview` (single correlated subquery) — no N+1 fetching
-- **Provider persistence**: `settingsStore` uses Zustand `partialize` to exclude provider credentials from localStorage
+- **Settings persistence**: `settingsStore` has no Zustand `persist` middleware — backend is single source of truth. `loadSettingsFromBackend()` called on mount; all writes go to `~/.config/ollie/settings.json` only
 - **Keyboard shortcuts**: `useKeyboardShortcuts` hook in `lib/shortcuts.ts` — `Ctrl+N` new chat, `Ctrl+K` model picker, `Ctrl+/` focus input, `Ctrl+B` toggle sidebar. Uses `useRef` pattern (single stable listener).
 - **Model picker event**: `ModelSelector` listens for `ollie:focus-model-picker` custom window event to open its dropdown
 - **Markdown export**: `exportChatAsMarkdown()` in `lib/export.ts` — Blob + anchor click download
 - **Monitoring**: Real sysinfo data (CPU, memory, disk, network via `Disks`/`Networks`); Ollama uptime via process lookup; model memory from `/api/ps`
 - **WebKit EGL fix**: `WEBKIT_DISABLE_DMABUF_RENDERER=1` set in `main.rs` before `run()` to prevent EGL crashes on Ubuntu 26.04+
 - **CSP**: Set in `tauri.conf.json` — `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost`
+- **Markdown pipeline**: Two pipelines in `markdown.tsx` — streaming (remarkGfm only, no KaTeX/highlight) and full (remarkGfm + remarkMath + rehypeHighlight + rehypeKatex). Switch deferred via `useTransition` to avoid main-thread freeze when streaming ends.
 - **MCP timeout**: `send_request` has 30s timeout via `tokio::time::timeout`
 - **SQLite busy timeout**: `PRAGMA busy_timeout=5000` set on pool connection
 
