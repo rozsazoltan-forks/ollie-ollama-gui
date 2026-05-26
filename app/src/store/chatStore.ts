@@ -326,6 +326,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     let streamDone = false        // True when backend signals done
     let persisted = false
     const DRIP_MS = 30            // Drip every 30ms (~33fps)
+    const RENDER_THROTTLE_MS = 100 // Push to React at most 10fps — decouples drip rate from render rate
+    let lastRenderPush = 0
 
     const dripTick = () => {
       if (pendingText.length === 0) {
@@ -377,7 +379,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       pendingText = pendingText.slice(batchSize)
       displayedContent += batch
 
-      get().updateStreamingMessage(assistantMessageId, displayedContent)
+      // Throttle React renders to 10fps — ReactMarkdown re-parses the full string on every
+      // render, so pushing on every 30ms tick causes render queue backup with fast models.
+      const now = Date.now()
+      if (now - lastRenderPush >= RENDER_THROTTLE_MS) {
+        get().updateStreamingMessage(assistantMessageId, displayedContent)
+        lastRenderPush = now
+      }
     }
 
     const startDrip = () => {
@@ -631,6 +639,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     let streamDone = false
     let persisted = false
     const DRIP_MS = 30
+    const RENDER_THROTTLE_MS = 100
+    let lastRenderPush = 0
 
     const dripTick = () => {
       if (pendingText.length === 0) {
@@ -666,7 +676,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const batch = pendingText.slice(0, batchSize)
       pendingText = pendingText.slice(batchSize)
       displayedContent += batch
-      get().updateStreamingMessage(assistantMessageId, displayedContent)
+
+      const now = Date.now()
+      if (now - lastRenderPush >= RENDER_THROTTLE_MS) {
+        get().updateStreamingMessage(assistantMessageId, displayedContent)
+        lastRenderPush = now
+      }
     }
 
     const startDrip = () => {

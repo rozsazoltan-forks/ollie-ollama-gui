@@ -5,7 +5,7 @@ import rehypeHighlight from 'rehype-highlight'
 import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
 import 'katex/dist/katex.min.css'
-import { useState, memo } from 'react'
+import { useState, memo, useMemo } from 'react'
 import { ChevronDown, ChevronRight, Brain, FileText } from 'lucide-react'
 import CodeBlock from '../components/CodeBlock'
 
@@ -151,10 +151,10 @@ const remarkPluginsFull = [remarkGfm, remarkMath]
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rehypePluginsFull = [rehypeRaw, [rehypeHighlight, { ignoreMissing: true }] as any, rehypeKatex]
 
-// Lightweight pipeline (streaming): basic markdown only — no GFM tables, no syntax highlighting
-// Headers, bold, italic, links, lists, inline code, code blocks all still render
-const remarkPluginsStreaming = [remarkMath]
-const rehypePluginsStreaming = [rehypeKatex]
+// Streaming pipeline: zero plugins — incomplete fragments make math/highlight wrong and expensive.
+// Bold, italic, headings, lists, inline code all render via remark's default pass.
+const remarkPluginsStreaming: [] = []
+const rehypePluginsStreaming: [] = []
 
 /**
  * Extract thought content and file blocks from raw markdown.
@@ -188,12 +188,12 @@ function preprocessContent(content: string) {
 }
 
 function Markdown({ content, isStreaming }: Props) {
-  const { thoughtContent, mainContent, files } = preprocessContent(content)
+  const { thoughtContent, mainContent, files } = useMemo(() => preprocessContent(content), [content])
 
-  // Pre-process LaTeX delimiters
-  const processedContent = mainContent
+  // Pre-process LaTeX delimiters — only meaningful for completed messages (full pipeline)
+  const processedContent = useMemo(() => isStreaming ? mainContent : mainContent
     .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$1$$$$')
-    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$')
+    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$'), [mainContent, isStreaming])
 
   // Choose plugin set based on streaming state:
   // - Streaming: lightweight (no GFM tables, no syntax highlighting) — keeps up with drip rate
