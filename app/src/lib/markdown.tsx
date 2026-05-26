@@ -5,7 +5,7 @@ import rehypeHighlight from 'rehype-highlight'
 import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
 import 'katex/dist/katex.min.css'
-import { useState, memo, useMemo } from 'react'
+import { useState, memo, useMemo, useEffect, useTransition } from 'react'
 import { ChevronDown, ChevronRight, Brain, FileText } from 'lucide-react'
 import CodeBlock from '../components/CodeBlock'
 
@@ -151,9 +151,9 @@ const remarkPluginsFull = [remarkGfm, remarkMath]
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rehypePluginsFull = [rehypeRaw, [rehypeHighlight, { ignoreMissing: true }] as any, rehypeKatex]
 
-// Streaming pipeline: zero plugins — incomplete fragments make math/highlight wrong and expensive.
-// Bold, italic, headings, lists, inline code all render via remark's default pass.
-const remarkPluginsStreaming: [] = []
+// Streaming pipeline: GFM tables render progressively; KaTeX + highlight deferred to completion.
+// Incomplete math/code fragments during streaming are wrong and expensive to process.
+const remarkPluginsStreaming = [remarkGfm]
 const rehypePluginsStreaming: [] = []
 
 /**
@@ -188,18 +188,28 @@ function preprocessContent(content: string) {
 }
 
 function Markdown({ content, isStreaming }: Props) {
+  // Defer the heavy pipeline switch (rehype-highlight + KaTeX on all blocks) as a
+  // low-priority React transition so the main thread doesn't freeze when streaming ends.
+  const [, startTransition] = useTransition()
+  const [pipelineStreaming, setPipelineStreaming] = useState(isStreaming ?? true)
+
+  useEffect(() => {
+    if (isStreaming) {
+      setPipelineStreaming(true)
+    } else {
+      startTransition(() => setPipelineStreaming(false))
+    }
+  }, [isStreaming])
+
   const { thoughtContent, mainContent, files } = useMemo(() => preprocessContent(content), [content])
 
-  // Pre-process LaTeX delimiters — only meaningful for completed messages (full pipeline)
-  const processedContent = useMemo(() => isStreaming ? mainContent : mainContent
+  // LaTeX delimiter pre-processing only needed for full pipeline (KaTeX renders on completion)
+  const processedContent = useMemo(() => pipelineStreaming ? mainContent : mainContent
     .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$1$$$$')
-    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$'), [mainContent, isStreaming])
+    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$'), [mainContent, pipelineStreaming])
 
-  // Choose plugin set based on streaming state:
-  // - Streaming: lightweight (no GFM tables, no syntax highlighting) — keeps up with drip rate
-  // - Complete: full pipeline with all formatting
-  const activeRemarkPlugins = isStreaming ? remarkPluginsStreaming : remarkPluginsFull
-  const activeRehypePlugins = isStreaming ? rehypePluginsStreaming : rehypePluginsFull
+  const activeRemarkPlugins = pipelineStreaming ? remarkPluginsStreaming : remarkPluginsFull
+  const activeRehypePlugins = pipelineStreaming ? rehypePluginsStreaming : rehypePluginsFull
 
   return (
     <div className="markdown-body w-full max-w-full overflow-hidden">

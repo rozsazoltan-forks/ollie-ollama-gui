@@ -15,15 +15,12 @@ export default function MainPanel({ isZenMode = false }: { isZenMode?: boolean }
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Subscribe to relevant state
-  const {
-    messages,
-    sendMessage,
-    currentModel,
-    isLoadingChat,
-    isStreaming,
-    stopStreaming
-  } = useChatStore()
+  const messages     = useChatStore(s => s.messages)
+  const sendMessage  = useChatStore(s => s.sendMessage)
+  const currentModel = useChatStore(s => s.currentModel)
+  const isLoadingChat = useChatStore(s => s.isLoadingChat)
+  const isStreaming  = useChatStore(s => s.isStreaming)
+  const stopStreaming = useChatStore(s => s.stopStreaming)
   const { setZenMode } = useUIStore()
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
