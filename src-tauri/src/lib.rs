@@ -76,6 +76,24 @@ pub fn run() {
       app.manage(AppStreams::default());
       app.manage(MonitoringState::default());
       app.manage(McpClients::default());
+
+      // Disable GPU/hardware acceleration at the WebKit API level.
+      // Prevents EGL initialization entirely — fixes Ubuntu 26.04 / Mesa 25+
+      // crash where eglGetDisplay(EGL_DEFAULT_DISPLAY) returns EGL_BAD_PARAMETER.
+      #[cfg(target_os = "linux")]
+      {
+        use webkit2gtk::{SettingsExt, WebViewExt};
+        if let Some(window) = app.get_webview_window("main") {
+          let _ = window.with_webview(|wv| {
+            if let Some(settings) = wv.inner().settings() {
+              settings.set_hardware_acceleration_policy(
+                webkit2gtk::HardwareAccelerationPolicy::Never,
+              );
+            }
+          });
+        }
+      }
+
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()

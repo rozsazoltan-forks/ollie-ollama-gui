@@ -1,6 +1,6 @@
 [package]
 name = "ollie"
-version = "0.2.8"
+version = "0.2.9"
 description = "Your Friendly Local AI Companion"
 authors = ["MedGm"]
 license = ""
@@ -37,3 +37,6 @@ reqwest-eventsource = "0.6"
 futures = "0.3"
 async-trait = "0.1"
 bytes = "1.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2.0.2", features = ["v2_22"] }
