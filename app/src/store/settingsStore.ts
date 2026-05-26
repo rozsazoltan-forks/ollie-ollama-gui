@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import { invoke } from '@tauri-apps/api/core'
 
 export interface ProviderConfig {
@@ -57,9 +56,7 @@ interface SettingsState {
   saveSettingsToBackend: () => Promise<void>
 }
 
-export const useSettingsStore = create<SettingsState>()(
-  persist(
-    (set, get) => ({
+export const useSettingsStore = create<SettingsState>()((set, get) => ({
       // Defaults
       serverUrl: 'http://localhost',
       serverPort: 11434,
@@ -272,21 +269,4 @@ export const useSettingsStore = create<SettingsState>()(
           throw e
         }
       },
-    }),
-    {
-      name: 'ollama-gui-settings',
-      // Only persist non-sensitive UI prefs — providers (API keys) stay backend-only
-      partialize: (state) => ({
-        serverUrl: state.serverUrl,
-        serverPort: state.serverPort,
-        defaultModel: state.defaultModel,
-        systemPrompt: state.systemPrompt,
-        defaultParams: state.defaultParams,
-        theme: state.theme,
-        appMode: state.appMode,
-        setupCompleted: state.setupCompleted,
-        activeProviderId: state.activeProviderId,
-      }),
-    }
-  )
-)
+}))
