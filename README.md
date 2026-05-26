@@ -83,50 +83,40 @@ Full dark mode with a light/dark/system toggle. System mode follows your OS pref
 
 ### ✅ Recently Completed
 
-- **Dark Theme**: Full dark mode with light/dark/system toggle, consistent across all screens. Contributed by [@leoniv](https://github.com/leoniv).
-- **Monitoring Dashboard Enhancements**: View running models, VRAM usage, and stop/unload models directly from the Monitoring tab.
-- **Model Download Progress**: Visual progress bars for model downloads with size/percentage display.
-- **Fullscreen Code Preview**: Expand HTML/SVG previews to fullscreen modal for better viewing.
-- **Streaming Performance**: Optimized first-token latency for faster response appearance.
-- **Message Editing**: Edit sent messages and regenerate responses from any point.
-- **Real-time HTML Preview**: Instant rendering of HTML/SVG artifacts directly in chat.
-- **Think Mode**: Toggle visibility for reasoning models' thought processes.
-- **Ollama Library Browser**: Browse available models directly from [ollama.com/library](https://ollama.com/library) in the pull dialog.
+- **Smart Streaming**: Render-throttled drip queue (10fps push to React) + dual markdown pipeline — streaming uses GFM tables only, syntax highlight and KaTeX deferred post-stream via `useTransition`. Eliminates lag with ultra-fast cloud providers.
+- **Keyboard Shortcuts**: `Ctrl+N` new chat, `Ctrl+K` model switch, `Ctrl+/` focus input, `Ctrl+B` toggle sidebar.
+- **Export Conversations**: Download any chat as a Markdown file.
+- **Context Window Management**: Automatic token budget — oldest messages trimmed before hitting provider limits.
 - **MCP Support**: Full Model Context Protocol integration for extensible tool access (filesystem, web, code execution, etc.).
 - **Cloud API Support**: Unified provider system supporting OpenAI, Anthropic, Google Gemini, and GroqCloud alongside local Ollama models.
 - **Startup Wizard**: Choosing between Local and Cloud modes.
-- **Smart Streaming**: Throttled chunk batching for smooth UI even with ultra-fast cloud providers.
+- **Think Mode**: Toggle visibility for reasoning models' thought processes.
+- **Real-time HTML Preview**: Instant rendering of HTML/SVG artifacts directly in chat, with fullscreen expand.
+- **Message Editing**: Edit sent messages and regenerate responses from any point.
 - **Graceful Error Handling**: Auto-fallback for models without tool support, truncation for large tool outputs.
 
 ### 🚀 Upcoming Features
 
-**Quick Wins**
-- **Export/Import Conversations**: Export chats as Markdown, JSON, or PDF. Import from ChatGPT/Claude formats.
-- **Keyboard Shortcuts**: `Ctrl+N` new chat, `Ctrl+K` model switch, `Ctrl+/` focus input, and customizable keybindings.
-- **Image/SVG Export**: Download HTML preview artifacts as PNG or SVG files.
-
 **Core & Chat**
+- **Export/Import Conversations**: Import from ChatGPT/Claude formats; export to JSON or PDF.
 - **Structured Outputs**: Support for JSON schemas and advanced tool calling patterns.
 - **Conversation Branching**: Fork conversations from any point.
 - **Multi-Model Comparison**: Send same prompt to multiple models, compare responses side-by-side.
 - **Prompt Templates Library**: Pre-built and user-created templates with variables.
 
 **Developer Tools**
-- **GitHub Integration**: Fetch repos for context, analyze PRs, export code to Gists.
 - **RAG / Document Memory**: Index local folders, chat with your codebase using embeddings.
 - **Local Code Sandbox**: Run Python/JavaScript code blocks in isolated environment with inline output.
+- **GitHub Integration**: Fetch repos for context, analyze PRs, export code to Gists.
 
 **Agents & Models**
-- **Agent Store**: One-click installation of prebuilt agents (coding, writing, etc.).
-- **Model Factory**: Create and push custom Modelfiles directly from the UI.
 - **Custom Agents**: Configure specific system prompts and behaviors per chat.
+- **Model Factory**: Create and push custom Modelfiles directly from the UI.
 
 **Platform & Integration**
 - **Ollama Server Discovery**: Auto-detect and connect to Ollama instances on local network.
+- **Windows & MacOS Support**: Cross-platform builds.
 - **Voice Mode**: Hands-free voice interaction.
-- **Mobile Companion App**: iOS/Android versions.
-- **Windows & MacOS Support**: Windows & MacOS versions.
-- **Plugin System**: Extend functionality with community plugins.
 - **Internationalization**: Multi-language UI support.
 
 ## Contributors
